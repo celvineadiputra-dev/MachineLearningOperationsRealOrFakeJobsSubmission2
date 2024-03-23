@@ -1,12 +1,21 @@
-def init_components():
+import os
+import tensorflow_model_analysis as tfma
+
+from tfx.types import Channel
+from tfx.dsl.components.common.resolver import Resolver
+from tfx.types.standard_artifacts import Model, ModelBlessing
+from tfx.proto import example_gen_pb2, trainer_pb2, pusher_pb2
+from tfx.dsl.input_resolution.strategies.latest_blessed_model_strategy import LatestBlessedModelStrategy
+from tfx.components import CsvExampleGen, StatisticsGen, SchemaGen, ExampleValidator, Transform, Trainer, Tuner, Evaluator, Pusher
+
+
+def init_components(args):
     output = example_gen_pb2.Output(
         split_config=example_gen_pb2.SplitConfig(
             splits=[
-                example_gen_pb2.SplitConfig.Split(name="train", hash_buckets=8),
-                example_gen_pb2.SplitConfig.Split(name="eval", hash_buckets=2),
-            ]
-        )
-    )
+                example_gen_pb2.SplitConfig.Split(
+                    name="train", hash_buckets=8), example_gen_pb2.SplitConfig.Split(
+                    name="eval", hash_buckets=2), ]))
 
     # ExampleGen
     example_gen = CsvExampleGen(input_base=DATA_CLEAN, output_config=output)
