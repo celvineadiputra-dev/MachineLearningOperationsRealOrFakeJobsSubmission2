@@ -1,0 +1,7 @@
+__pycache__
+celvine-pipelines
+**/*.ipynb_checkpoints
+
+real_or_fake_job_transform.py
+real_or_fake_job_tuner.py
+real_or_fake_job_trainer.py
