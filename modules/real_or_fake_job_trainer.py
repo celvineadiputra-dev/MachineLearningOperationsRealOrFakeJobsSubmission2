@@ -1,7 +1,9 @@
+"""
+TRAINER
+"""
 import os
 
 import tensorflow as tf
-import tensorflow_hub as hub
 import tensorflow_transform as tft
 
 from tensorflow.keras import layers
@@ -12,17 +14,40 @@ FEATURE_KEY = "full_description"
 
 
 def transformed_name(key):
+    """
+    Generate the transformed name for the given key.
+
+    Args:
+        key (str): The key to be transformed.
+
+    Returns:
+        str: The transformed name.
+    """
     return key + "_xf"
 
 
 def gzip_reader_fn(filenames):
+    """
+    Create a TFRecordDataset object for reading gzipped files.
+
+    Args:
+        filenames (List[str]): A list of file names to read.
+
+    Returns:
+        TFRecordDataset: A TFRecordDataset object for reading the gzipped files.
+    """
     return tf.data.TFRecordDataset(filenames, compression_type='GZIP')
 
 
-def input_fn(file_pattern,
-             tf_transform_output,
-             num_epochs,
-             batch_size=64) -> tf.data.Dataset:
+def input_fn(
+        file_pattern,
+        tf_transform_output,
+        num_epochs,
+        batch_size=64) -> tf.data.Dataset:
+    """
+    A function to generate a dataset using the provided
+        file pattern, tf_transform_output, num_epochs, and batch_size.
+    """
     # Get post_transform feature spec
     transform_feature_spec = (
         tf_transform_output.transformed_feature_spec().copy())
@@ -35,11 +60,9 @@ def input_fn(file_pattern,
         reader=gzip_reader_fn,
         num_epochs=num_epochs,
         label_key=transformed_name(LABEL_KEY))
+
     return dataset
 
-
-# os.environ['TFHUB_CACHE_DIR'] = '/hub_chace'
-# embed = hub.KerasLayer("https://tfhub.dev/google/universal-sentence-encoder/4")
 
 VOCAB_SIZE = 10000
 SEQUENCE_LENGTH = 100
@@ -50,22 +73,24 @@ vectorize_layer = layers.TextVectorization(
     output_mode='int',
     output_sequence_length=SEQUENCE_LENGTH)
 
-# import tensorflow_hub as hub
-# embedding = hub.load("https://www.kaggle.com/models/google/universal-sentence-encoder/frameworks/TensorFlow2/variations/universal-sentence-encoder/versions/2")
-
-embedding_dim = 16
+EMBEDDING_DIM = 16
 
 
 def model_builder():
+    """
+    Builds and compiles a TensorFlow Keras model for binary classification.
+
+    Returns:
+        model (tf.keras.Model): The compiled TensorFlow Keras model.
+    """
+
     inputs = tf.keras.Input(
-        shape=(
-            1,
-        ),
+        shape=(1,),
         name=transformed_name(FEATURE_KEY),
         dtype=tf.string)
     reshaped_narrative = tf.reshape(inputs, [-1])
     x = vectorize_layer(reshaped_narrative)
-    x = layers.Embedding(VOCAB_SIZE, embedding_dim, name="embedding")(x)
+    x = layers.Embedding(VOCAB_SIZE, EMBEDDING_DIM, name="embedding")(x)
     x = layers.GlobalAveragePooling1D()(x)
     x = layers.Dense(64, activation='relu')(x)
     x = layers.Dense(32, activation="relu")(x)
@@ -85,6 +110,12 @@ def model_builder():
 
 
 def _get_serve_tf_examples_fn(model, tf_transform_output):
+    """
+    A function that serves TensorFlow examples by parsing and transforming features using a provided
+    model and TF Transform output.
+    Takes a serialized TensorFlow example as input and returns the model predictions using the
+    transformed features.
+    """
     model.tft_layer = tf_transform_output.transform_features_layer()
 
     @tf.function
@@ -105,6 +136,15 @@ def _get_serve_tf_examples_fn(model, tf_transform_output):
 
 
 def run_fn(fn_args: FnArgs) -> None:
+    """
+    Run the training function with the given arguments.
+
+    Args:
+        fn_args (FnArgs): The function arguments.
+
+    Returns:
+        None
+    """
     log_dir = os.path.join(os.path.dirname(fn_args.serving_model_dir), 'logs')
 
     tensorboard_callback = tf.keras.callbacks.TensorBoard(
@@ -132,7 +172,8 @@ def run_fn(fn_args: FnArgs) -> None:
     vectorize_layer.adapt(
         [j[0].numpy()[0] for j in [
             i[0][transformed_name(FEATURE_KEY)]
-            for i in list(train_set)]])
+            for i in list(train_set)]]
+    )
 
     # Build the model
     model = model_builder()
@@ -144,6 +185,7 @@ def run_fn(fn_args: FnArgs) -> None:
               steps_per_epoch=1000,
               validation_steps=1000,
               epochs=10)
+
     signatures = {
         'serving_default': _get_serve_tf_examples_fn(
             model,
@@ -151,7 +193,9 @@ def run_fn(fn_args: FnArgs) -> None:
             tf.TensorSpec(
                 shape=[None],
                 dtype=tf.string,
-                name='examples'))}
+                name='examples'))
+    }
+
     model.save(
         fn_args.serving_model_dir,
         save_format='tf',

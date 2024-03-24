@@ -1,3 +1,6 @@
+"""
+TFX function Pipeline Components
+"""
 import os
 import tensorflow_model_analysis as tfma
 
@@ -5,11 +8,27 @@ from tfx.types import Channel
 from tfx.dsl.components.common.resolver import Resolver
 from tfx.types.standard_artifacts import Model, ModelBlessing
 from tfx.proto import example_gen_pb2, trainer_pb2, pusher_pb2
-from tfx.dsl.input_resolution.strategies.latest_blessed_model_strategy import LatestBlessedModelStrategy
-from tfx.components import CsvExampleGen, StatisticsGen, SchemaGen, ExampleValidator, Transform, Trainer, Tuner, Evaluator, Pusher
+from tfx.dsl.input_resolution.strategies.latest_blessed_model_strategy import (
+    LatestBlessedModelStrategy,
+)
+from tfx.components import (
+    CsvExampleGen,
+    StatisticsGen,
+    SchemaGen,
+    ExampleValidator,
+    Transform,
+    Trainer,
+    Tuner,
+    Evaluator,
+    Pusher,
+)
 
 
 def init_components(args):
+    """
+    Function to initialize and connect all the components needed for the machine learning pipeline.
+    It takes 'args' as a parameter and returns a tuple of the initialized components.
+    """
     output = example_gen_pb2.Output(
         split_config=example_gen_pb2.SplitConfig(
             splits=[
@@ -18,7 +37,9 @@ def init_components(args):
                     name="eval", hash_buckets=2), ]))
 
     # ExampleGen
-    example_gen = CsvExampleGen(input_base=DATA_CLEAN, output_config=output)
+    example_gen = CsvExampleGen(
+        input_base=args['data_root'],
+        output_config=output)
 
     # StatisticsGen
     statistics_gen = StatisticsGen(examples=example_gen.outputs["examples"])
@@ -36,12 +57,21 @@ def init_components(args):
     transform = Transform(
         examples=example_gen.outputs["examples"],
         schema=schema_gen.outputs["schema"],
-        module_file=os.path.abspath(TRANSFORM_MODULE_FILE),
+        module_file=os.path.abspath(args['transform_module_file_path']),
+    )
+
+    tuner = Tuner(
+        module_file=os.path.abspath(args['tuner_module_file_path']),
+        examples=transform.outputs["transformed_examples"],
+        transform_graph=transform.outputs["transform_graph"],
+        schema=schema_gen.outputs["schema"],
+        train_args=trainer_pb2.TrainArgs(splits=["train"], num_steps=800),
+        eval_args=trainer_pb2.EvalArgs(splits=["eval"], num_steps=400),
     )
 
     # Trainer
     trainer = Trainer(
-        module_file=os.path.abspath(TRAINER_MODULE_FILE),
+        module_file=os.path.abspath(args['transform_module_file_path']),
         examples=transform.outputs["transformed_examples"],
         transform_graph=transform.outputs["transform_graph"],
         schema=schema_gen.outputs["schema"],
@@ -101,7 +131,7 @@ def init_components(args):
         model_blessing=evaluator.outputs["blessing"],
         push_destination=pusher_pb2.PushDestination(
             filesystem=pusher_pb2.PushDestination.Filesystem(
-                base_directory="serving_model_dir/real-or-fake-jobs-detection-model"
+                base_directory=args['serving_directory']
             )
         ),
     )

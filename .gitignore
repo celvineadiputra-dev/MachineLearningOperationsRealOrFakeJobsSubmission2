@@ -1,4 +1,9 @@
+.idea
+
 __pycache__
+
 celvine-pipelines
+
 **/*.ipynb_checkpoints
+
 serving_model_dir

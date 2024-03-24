@@ -1,22 +1,37 @@
+"""
+TRANSFORM
+"""
 import tensorflow as tf
 
+LABEL_KEY = "fraudulent"
+FEATURE_KEY = "full_description"
 
-def real_or_fake_job_transform(args):
-    def transformed_name(key):
-        return key + "_xf"
 
-    def preprocessing_fn(inputs):
-        outputs = {}
+def transformed_name(key):
+    """
+    A function that takes a key and transforms it by appending '_xf' to it.
 
-        outputs[transformed_name(FEATURE_KEY)] = tf.strings.lower(
-            inputs[args['FEATURE_KEY']])
+    Parameters:
+    key (any): The key to be transformed.
 
-        outputs[transformed_name(LABEL_KEY)] = tf.cast(
-            inputs[args['LABEL_KEY']], tf.int64)
+    Returns:
+    str: The transformed key with '_xf' appended to it.
+    """
+    return key + "_xf"
 
-        return outputs
 
-    return (
-        transformed_name,
-        preprocessing_fn
-    )
+def preprocessing_fn(inputs):
+    """
+    A function that preprocesses inputs by transforming feature and label keys.
+
+    Parameters:
+    inputs (dict): A dictionary containing feature and label keys.
+
+    Returns:
+    dict: A dictionary with transformed feature and label keys.
+    """
+    outputs = {transformed_name(FEATURE_KEY): tf.strings.lower(
+        inputs[FEATURE_KEY]), transformed_name(LABEL_KEY): tf.cast(
+        inputs[LABEL_KEY], tf.int64)}
+
+    return outputs
