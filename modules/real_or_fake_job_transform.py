@@ -2,6 +2,7 @@
 TRANSFORM
 """
 import tensorflow as tf
+import tensorflow_transform as tft
 
 LABEL_KEY = "fraudulent"
 FEATURE_KEY = "full_description"

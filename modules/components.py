@@ -60,13 +60,14 @@ def init_components(args):
         module_file=os.path.abspath(args['transform_module_file_path']),
     )
 
+    # Tuner
     tuner = Tuner(
         module_file=os.path.abspath(args['tuner_module_file_path']),
         examples=transform.outputs["transformed_examples"],
         transform_graph=transform.outputs["transform_graph"],
         schema=schema_gen.outputs["schema"],
-        train_args=trainer_pb2.TrainArgs(splits=["train"], num_steps=800),
-        eval_args=trainer_pb2.EvalArgs(splits=["eval"], num_steps=400),
+        train_args=trainer_pb2.TrainArgs(splits=["train"], num_steps=20),
+        eval_args=trainer_pb2.EvalArgs(splits=["eval"], num_steps=5),
     )
 
     # Trainer
@@ -75,6 +76,7 @@ def init_components(args):
         examples=transform.outputs["transformed_examples"],
         transform_graph=transform.outputs["transform_graph"],
         schema=schema_gen.outputs["schema"],
+        hyperparameters=tuner.outputs["best_hyperparameters"],
         train_args=trainer_pb2.TrainArgs(splits=["train"]),
         eval_args=trainer_pb2.EvalArgs(splits=["eval"]),
     )
