@@ -1,3 +1,6 @@
+"""
+  TUNER
+"""
 import keras_tuner as kt
 import tensorflow as tf
 import tensorflow_transform as tft
@@ -9,7 +12,7 @@ from tfx.components.trainer.fn_args_utils import FnArgs
 
 LABEL_KEY = "fraudulent"
 FEATURE_KEY = "full_description"
-NUM_EPOCHS = 2
+NUM_EPOCHS = 5
 
 TunerFnResult = NamedTuple("TunerFnResult", [
     ("tuner", base_tuner.BaseTuner),
@@ -25,10 +28,28 @@ early_stopping_callback = tf.keras.callbacks.EarlyStopping(
 
 
 def transformed_name(key):
+    """
+      This function takes a string as input and returns a new string with the suffix "_xf" appended.
+
+      Args:
+          key: The input string, which is likely a feature name.
+
+      Returns:
+          A new string with "_xf" appended to the input string. This likely represents the transformed version of the feature name.
+    """
     return f"{key}_xf"
 
 
 def gzip_reader_fn(filenames):
+    """
+      This function creates a TensorFlow Dataset object by reading data from GZIP-compressed files.
+
+      Args:
+          filenames: A list of strings containing the paths to the GZIP-compressed files.
+
+      Returns:
+          A TensorFlow Dataset object containing the data from the specified GZIP files.
+    """
     return tf.data.TFRecordDataset(filenames, compression_type="GZIP")
 
 
@@ -56,7 +77,7 @@ def model_builder(hp, vectorizer_layer):
     embed_dims = hp.Int(
         "embed_dims", min_value=16, max_value=128, step=32
     )
-    lstm_units= hp.Int(
+    lstm_units = hp.Int(
         "lstm_units", min_value=32, max_value=128, step=32
     )
     dense_units = hp.Int(

@@ -72,7 +72,7 @@ def init_components(args):
 
     # Trainer
     trainer = Trainer(
-        module_file=os.path.abspath(args['transform_module_file_path']),
+        module_file=os.path.abspath(args['trainer_module_file_path']),
         examples=transform.outputs["transformed_examples"],
         transform_graph=transform.outputs["transform_graph"],
         schema=schema_gen.outputs["schema"],
