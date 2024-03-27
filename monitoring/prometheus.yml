@@ -10,4 +10,4 @@ scrape_configs:
     scrape_interval: 5s
     metrics_path: /monitoring/prometheus/metrics
     static_configs:
-      - targets: ['<External IP>:8501']
+      - targets: ['103.190.215.94:8501']

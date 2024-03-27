@@ -1,6 +1,6 @@
 FROM tensorflow/serving:latest
 
-COPY ./serving_model_dir /models/real-or-fake-jobs-detection-model
+COPY ./serving_model_dir /models
 COPY ./config /model_config
 
 ENV MODEL_NAME=real-or-fake-jobs-detection-model
