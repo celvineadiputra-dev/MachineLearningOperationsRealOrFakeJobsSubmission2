@@ -1,17 +1,23 @@
 """
   TUNER
 """
+
+from typing import NamedTuple, Dict, Text, Any
 import keras_tuner as kt
 import tensorflow as tf
 import tensorflow_transform as tft
-from typing import NamedTuple, Dict, Text, Any
 from keras_tuner.engine import base_tuner
-from tensorflow.keras import layers
+from keras import layers
 from tfx.components.trainer.fn_args_utils import FnArgs
+from real_or_fake_job_trainer import (
+    transformed_name,
+    input_fn,
+    early_stopping_callback,
+    vectorized_dataset,
+    vectorized_layer,
+    FEATURE_KEY
+)
 
-
-LABEL_KEY = "fraudulent"
-FEATURE_KEY = "full_description"
 NUM_EPOCHS = 5
 
 TunerFnResult = NamedTuple("TunerFnResult", [
@@ -19,58 +25,46 @@ TunerFnResult = NamedTuple("TunerFnResult", [
     ("fit_kwargs", Dict[Text, Any]),
 ])
 
-early_stopping_callback = tf.keras.callbacks.EarlyStopping(
-    monitor="val_binary_accuracy",
-    mode="max",
-    verbose=1,
-    patience=10,
-)
-
-
-def transformed_name(key):
-    """
-      This function takes a string as input and returns a new string with the suffix "_xf" appended.
-
-      Args:
-          key: The input string, which is likely a feature name.
-
-      Returns:
-          A new string with "_xf" appended to the input string. This likely represents the transformed version of the feature name.
-    """
-    return f"{key}_xf"
-
-
-def gzip_reader_fn(filenames):
-    """
-      This function creates a TensorFlow Dataset object by reading data from GZIP-compressed files.
-
-      Args:
-          filenames: A list of strings containing the paths to the GZIP-compressed files.
-
-      Returns:
-          A TensorFlow Dataset object containing the data from the specified GZIP files.
-    """
-    return tf.data.TFRecordDataset(filenames, compression_type="GZIP")
-
-
-def input_fn(file_pattern, tf_transform_output, num_epochs, batch_size=64):
-    transform_feature_spec = (
-        tf_transform_output.transformed_feature_spec().copy()
-    )
-
-    dataset = tf.data.experimental.make_batched_features_dataset(
-        file_pattern=file_pattern,
-        batch_size=batch_size,
-        features=transform_feature_spec,
-        reader=gzip_reader_fn,
-        num_epochs=num_epochs,
-        label_key=transformed_name(LABEL_KEY),
-    )
-
-    return dataset
-
 
 def model_builder(hp, vectorizer_layer):
+    """
+    Builds a Keras model for binary classification.
+
+    Args:
+        hp (HyperParameters): The hyperparameters for the model.
+        vectorized_layer (tf.keras.layers.TextVectorization): The vectorized layer for text data.
+
+    Returns:
+        tf.keras.Model: The compiled Keras model.
+
+    Hyperparameters:
+        - num_hidden_layers (int): The number of hidden layers in the model. Must be either 1 or 2.
+        - embed_dims (int): The dimension of the embedding layer. Must be between 16 and 128,
+        with a step of 32.
+        - lstm_units (int): The number of units in the LSTM layer. Must be between 32 and 128,
+        with a step of 32.
+        - dense_units (int): The number of units in the dense layer. Must be between 32 and 256,
+        with a step of 32.
+        - dropout_rate (float): The dropout rate for the dropout layer. Must be between 0.1 and 0.5,
+        with a step of 0.1.
+        - learning_rate (float): The learning rate for the optimizer. Must be one of 1e-2, 1e-3, or
+        1e-4.
+
+    Model Architecture:
+        - Input layer: Takes a string input of shape (1,)
+        with the name transformed_name(FEATURE_KEY).
+        - Vectorized layer: Applies the vectorized layer to the input.
+        - Embedding layer: Maps the vectorized input to an embedding of dimension embed_dims.
+        - Bidirectional LSTM layer: Applies a bidirectional LSTM to the embedding.
+        - Hidden layers: Applies dense and dropout layers num_hidden_layers times.
+        - Output layer: Applies a dense layer with a
+        sigmoid activation function to produce a binary output.
+
+    Model Compilation:
+        - Compiles the model with the Adam optimizer, binary cross entropy loss,
+        and binary accuracy metric.
+
+    """
     num_hidden_layers = hp.Choice(
         "num_hidden_layers", values=[1, 2]
     )
@@ -116,24 +110,29 @@ def model_builder(hp, vectorizer_layer):
 
 
 def tuner_fn(fn_args: FnArgs):
+    """
+    Initialize and tune a model using hyperband optimization.
+
+    Args:
+        fn_args (FnArgs): An object containing all the necessary arguments for the function.
+
+    Returns:
+        TunerFnResult: A named tuple containing the tuned model and fitting arguments.
+    """
     tf_transform_output = tft.TFTransformOutput(fn_args.transform_graph_path)
 
     train_set = input_fn(
         fn_args.train_files[0], tf_transform_output, NUM_EPOCHS
     )
+
     eval_set = input_fn(
         fn_args.eval_files[0], tf_transform_output, NUM_EPOCHS
     )
 
-    vectorizer_dataset = train_set.map(
-        lambda f, l: f[transformed_name(FEATURE_KEY)]
-    )
+    vectorizer_dataset = vectorized_dataset(train_set)
 
-    vectorizer_layer = layers.TextVectorization(
-        max_tokens=5000,
-        output_mode="int",
-        output_sequence_length=500,
-    )
+    vectorizer_layer = vectorized_layer()
+
     vectorizer_layer.adapt(vectorizer_dataset)
 
     tuner = kt.Hyperband(

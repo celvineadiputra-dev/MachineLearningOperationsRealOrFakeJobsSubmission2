@@ -1,23 +1,74 @@
+"""
+    TRAINER
+"""
 import os
 import tensorflow as tf
 import tensorflow_transform as tft
-import tensorflow_hub as hub
-from tensorflow.keras import layers
+from keras import layers
 from tfx.components.trainer.fn_args_utils import FnArgs
 
 LABEL_KEY = "fraudulent"
 FEATURE_KEY = "full_description"
 
+early_stopping_callback = tf.keras.callbacks.EarlyStopping(
+    monitor="val_binary_accuracy",
+    mode="max",
+    verbose=1,
+    patience=10,
+)
+
+
+def vectorized_dataset(train_set):
+    """
+        vectorized_dataset
+    """
+    return train_set.map(
+        lambda f, l: f[transformed_name(FEATURE_KEY)]
+    )
+
+
+def vectorized_layer():
+    """
+        vectorized_layer
+    """
+    return layers.TextVectorization(
+        max_tokens=5000,
+        output_mode="int",
+        output_sequence_length=500,
+    )
+
 
 def transformed_name(key):
+    """
+    Generate the transformed name for the given key.
+
+    Args:
+        key (str): The key to be transformed.
+
+    Returns:
+        str: The transformed name.
+    """
     return f"{key}_xf"
 
 
 def gzip_reader_fn(filenames):
+    """
+    Create a TFRecordDataset object for reading gzipped files.
+
+    Args:
+        filenames (List[str]): A list of file names to read.
+
+    Returns:
+        TFRecordDataset: A TFRecordDataset object for reading the gzipped files.
+    """
     return tf.data.TFRecordDataset(filenames, compression_type="GZIP")
 
 
 def input_fn(file_pattern, tf_transform_output, num_epochs, batch_size=64):
+    """
+    A function to generate a dataset using the provided
+        file pattern, tf_transform_output, num_epochs, and batch_size.
+    """
     transform_feature_spec = (
         tf_transform_output.transformed_feature_spec().copy()
     )
@@ -34,27 +85,39 @@ def input_fn(file_pattern, tf_transform_output, num_epochs, batch_size=64):
     return dataset
 
 
-def model_builder(vectorizer_layer, hp):
+def model_builder(vectorizer_layer, hyperparameters):
+    """
+    Builds and compiles a TensorFlow Keras model for binary classification.
+
+    Returns:
+        model (tf.keras.Model): The compiled TensorFlow Keras model.
+    """
     inputs = tf.keras.Input(
         shape=(1,), name=transformed_name(FEATURE_KEY), dtype=tf.string
     )
 
     x = vectorizer_layer(inputs)
-    x = layers.Embedding(input_dim=5000, output_dim=hp["embed_dims"])(x)
-    x = layers.Bidirectional(layers.LSTM(hp["lstm_units"]))(x)
+    x = layers.Embedding(
+        input_dim=5000,
+        output_dim=hyperparameters["embed_dims"])(x)
+    x = layers.Bidirectional(layers.LSTM(hyperparameters["lstm_units"]))(x)
 
-    for _ in range(hp["num_hidden_layers"]):
-        x = layers.Dense(hp["dense_units"], activation=tf.nn.relu)(x)
-        x = layers.Dropout(hp["dropout_rate"])(x)
+    for _ in range(hyperparameters["num_hidden_layers"]):
+        x = layers.Dense(
+            hyperparameters["dense_units"],
+            activation=tf.nn.relu)(x)
+        x = layers.Dropout(hyperparameters["dropout_rate"])(x)
 
     outputs = layers.Dense(1, activation=tf.nn.sigmoid)(x)
 
     model = tf.keras.Model(inputs=inputs, outputs=outputs)
 
     model.compile(
-        optimizer=tf.keras.optimizers.Adam(learning_rate=hp["learning_rate"]),
+        optimizer=tf.keras.optimizers.Adam(
+            learning_rate=hyperparameters["learning_rate"]),
         loss=tf.keras.losses.BinaryCrossentropy(),
-        metrics=[tf.keras.metrics.BinaryAccuracy()],
+        metrics=[
+            tf.keras.metrics.BinaryAccuracy()],
     )
 
     model.summary()
@@ -63,18 +126,23 @@ def model_builder(vectorizer_layer, hp):
 
 
 def run_fn(fn_args: FnArgs):
-    hp = fn_args.hyperparameters["values"]
+    """
+    Run the training function with the given arguments.
+
+    Args:
+        fn_args (FnArgs): The function arguments.
+
+    Returns:
+        None
+    """
+    hyperparameters = fn_args.hyperparameters["values"]
+
     log_dir = os.path.join(os.path.dirname(fn_args.serving_model_dir), "logs")
 
     tensorboard_callback = tf.keras.callbacks.TensorBoard(
         log_dir=log_dir, update_freq="batch"
     )
-    early_stopping_callback = tf.keras.callbacks.EarlyStopping(
-        monitor="val_binary_accuracy",
-        mode="max",
-        verbose=1,
-        patience=10,
-    )
+
     model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
         fn_args.serving_model_dir,
         monitor="val_binary_accuracy",
@@ -82,6 +150,7 @@ def run_fn(fn_args: FnArgs):
         verbose=1,
         save_best_only=True,
     )
+
     callbacks = [
         tensorboard_callback,
         early_stopping_callback,
@@ -91,24 +160,22 @@ def run_fn(fn_args: FnArgs):
     tf_transform_output = tft.TFTransformOutput(fn_args.transform_graph_path)
 
     train_set = input_fn(
-        fn_args.train_files, tf_transform_output, hp["tuner/epochs"]
-    )
+        fn_args.train_files,
+        tf_transform_output,
+        hyperparameters["tuner/epochs"])
+
     eval_set = input_fn(
-        fn_args.eval_files, tf_transform_output, hp["tuner/epochs"]
-    )
+        fn_args.eval_files,
+        tf_transform_output,
+        hyperparameters["tuner/epochs"])
 
-    vectorizer_dataset = train_set.map(
-        lambda f, l: f[transformed_name(FEATURE_KEY)]
-    )
+    vectorizer_dataset = vectorized_dataset(train_set)
 
-    vectorizer_layer = layers.TextVectorization(
-        max_tokens=5000,
-        output_mode="int",
-        output_sequence_length=500,
-    )
+    vectorizer_layer = vectorized_layer()
+
     vectorizer_layer.adapt(vectorizer_dataset)
 
-    model = model_builder(vectorizer_layer, hp)
+    model = model_builder(vectorizer_layer, hyperparameters)
 
     model.fit(
         x=train_set,
@@ -116,7 +183,7 @@ def run_fn(fn_args: FnArgs):
         validation_data=eval_set,
         validation_steps=fn_args.eval_steps,
         callbacks=callbacks,
-        epochs=hp["tuner/epochs"],
+        epochs=hyperparameters["tuner/epochs"],
         verbose=1,
     )
 
@@ -140,6 +207,12 @@ def run_fn(fn_args: FnArgs):
 
 
 def _get_serve_tf_example_fn(model, tf_transform_output):
+    """
+    A function that serves TensorFlow examples by parsing and transforming features using a provided
+    model and TF Transform output.
+    Takes a serialized TensorFlow example as input and returns the model predictions using the
+    transformed features.
+    """
     model.tft_layer = tf_transform_output.transform_features_layer()
 
     @tf.function
