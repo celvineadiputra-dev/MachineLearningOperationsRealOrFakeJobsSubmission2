@@ -13,6 +13,6 @@ Username dicoding: CelvineAdiPutra
 | Arsitektur model | Model ini dibangun menggunakan layer TextVectorization, sebagi layer yang berfungsi untuk memproses input string kedalam bentuk angka, dan layer embedding bertugas untuk mengukur kedekatan atau kesamaan dari setiap kata untuk mengetahui  kata tersebut merupakan kata negatif atau kata positif. |
 | Metrik evaluasi | Mertrik evaluasi yang di gunakan pada model ini yaiut TP, TN, FP, dan FN |
 | Performa model | Model yang telah dibuat mendapatkan hasil yang cukup baik dengan akurasi 98% dalam memprediksi job posting. |
-| Opsi deployment | Deksripsi tentang opsi deployment |
-| Web app | Tautan web app yang digunakan untuk mengakses model serving.|
-| Monitoring | Deksripsi terkait hasil monitoring dari model serving |
+| Opsi deployment | Project Machine Learning ini di deploy di layanan Cloudeka |
+| Web app | [Serving Model URL](http://103.190.215.94:8501/v1/models/real-or-fake-jobs-detection-model/) |
+| Monitoring | Project ini di monitoring dengan prometheus menggunakan grafana|

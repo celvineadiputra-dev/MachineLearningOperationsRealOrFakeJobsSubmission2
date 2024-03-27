@@ -30,3 +30,13 @@ pip install autopep8
 ```
 autopep8 --in-place --aggressive --aggressive <FILE_NAME>
 ```
+
+## Pylint
+
+```
+pip install pylint
+```
+
+```
+pylint modules/*.py
+```
