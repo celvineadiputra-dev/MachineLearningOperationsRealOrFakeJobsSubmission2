@@ -4,6 +4,8 @@ Nama: Celvine Adi Putra
 
 Username dicoding: CelvineAdiPutra
 
+<img src="https://dicoding-web-img.sgp1.cdn.digitaloceanspaces.com/original/submission-rating-badge/rating-default-5.png"/>
+
 | | Deskripsi |
 | ----------- | ----------- |
 | Dataset | [Real / Fake Job Posting Prediction](https://www.kaggle.com/datasets/shivamb/real-or-fake-fake-jobposting-prediction?resource=download) |
